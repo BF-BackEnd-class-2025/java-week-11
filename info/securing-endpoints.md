@@ -248,9 +248,3 @@ You now have a fully secure backend architecture using **Spring Security + JWT**
 
 ---
 
-If you’d like, I can also prepare:
-
-- MD file for Authorization (roles & permissions)
-- A diagram explaining how Spring Security filters work
-- A complete starter-template project for students
-

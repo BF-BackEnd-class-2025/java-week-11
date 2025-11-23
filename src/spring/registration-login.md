@@ -22,7 +22,7 @@ Authentication requires two main actions:
 3. Compare submitted password with stored hashed password:
 
 ```java
-   encoder.matches(rawPassword, storedHashedPassword)
+   encoder.matches(rawPassword, storedHashedPassword);
 ```
 
 1. If correct → Generate a **JWT token**.

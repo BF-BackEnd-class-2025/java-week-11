@@ -299,10 +299,4 @@ public class GlobalExceptionHandler
 
 ---
 
-If you want, I can also create:
-
-- A full authentication flow diagram--
-- A visual sequence chart (register → login → protected route)--
-- Complete SecurityConfig & JWTFilter MD file--
-- A starter project template for your students--
 
