@@ -1,13 +1,3 @@
-Absolutely Sam — here is the **updated Service Layer README**, fully aligned with your correct project rules:
-
-## ✔ USER can CRUD **only their own movies**
-
-## ✔ ADMIN can CRUD **ALL movies**
-
-This version fixes the incorrect parts in the MovieService you pasted earlier.
-
----
-
 # ⚙️ **Service Layer**
 
 ## Business Logic · Authentication · Movie Ownership · Admin Override
