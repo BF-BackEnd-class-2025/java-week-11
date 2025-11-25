@@ -1,15 +1,46 @@
 # 🎮 **Controller Layer**
 
-### Authentication · Token Validation · Role Checking · CRUD
+## Authentication · Token Validation · User Ownership · Admin Override
+
+The Controller Layer exposes the public REST API endpoints.
+Controllers do **not** contain business logic—
+they **validate incoming requests**,
+**ensure authentication is provided**,
+and **pass the authenticated User** into the service layer.
+
+## ✔ Controllers in this Project
+
+| Controller          | Responsibilities                         |
+|---------------------|------------------------------------------|
+| **AuthController**  | Registration, Login, issuing JWT tokens  |
+| **MovieController** | Public movie reading + secure movie CRUD |
 
 ---
 
-# 🔐 **AuthController (Login & Registration)**
+# 🔐 **AuthController — Registration & Login**
 
-Handles:
+Handles user registration and login.
 
-* Register → Public
-* Login → Public
+📌 **Public Routes (No token required):**
+
+* `POST /auth/register`
+* `POST /auth/login`
+
+Registration validates:
+
+* Email uniqueness
+* Password length
+* Username non-empty
+
+Login returns:
+
+* JWT token
+* User role
+* User ID
+
+---
+
+## **AuthController.java**
 
 ```java
 @RestController
@@ -22,20 +53,22 @@ public class AuthController {
         this.authService = authService;
     }
 
-    // -----------------------------------------
-    // POST /auth/register  → Public
-    // -----------------------------------------
+    // -------------------------------------------------------
+    // POST /auth/register  → PUBLIC
+    // -------------------------------------------------------
     @PostMapping("/register")
     public ResponseEntity<?> register(@Valid @RequestBody RegisterRequestDTO dto) {
 
-        authService.register(dto); // service validates email + creates user
-        return ResponseEntity.status(HttpStatus.CREATED)
+        authService.register(dto);
+        return ResponseEntity
+                .status(HttpStatus.CREATED)
                 .body("User registered successfully");
     }
 
-    // -----------------------------------------
-    // POST /auth/login  → Public
-    // -----------------------------------------
+    // -------------------------------------------------------
+    // POST /auth/login → PUBLIC
+    // Returns a JWT token and user info
+    // -------------------------------------------------------
     @PostMapping("/login")
     public ResponseEntity<LoginResponseDTO> login(
             @Valid @RequestBody LoginRequestDTO dto
@@ -48,19 +81,41 @@ public class AuthController {
 
 ---
 
-# 🎬 **MovieController (Token Validation + Admin Check + CRUD)**
+# 🎬 **MovieController — PUBLIC & PROTECTED Routes**
 
-This version checks:
+This controller follows your project rules:
 
-### ✔ User must provide token
+### ✔ Public Routes
 
-### ✔ Token must be valid
+* `GET /movies`
+* `GET /movies/{id}`
 
-### ✔ User must be ADMIN
+### ✔ USER Rules
 
-### ✔ Logged-in user is passed to service
+* Can create movies under his own account
+* Can update only *his* movies
+* Can delete only *his* movies
+
+### ✔ ADMIN Rules
+
+* Can create ANY movie
+* Can update ANY movie
+* Can delete ANY movie
+
+### ✔ Ownership Validation
+
+Ownership enforcement happens in:
+
+```
+MovieService.updateMovie(...)
+MovieService.deleteMovie(...)
+```
+
+Not in the controller — this keeps the controller clean.
 
 ---
+
+## **MovieController.java**
 
 ```java
 @RestController
@@ -75,7 +130,8 @@ public class MovieController
     }
 
     // -------------------------------------------------------
-    // GET /movies → PUBLIC (No authentication required)
+    // GET /movies → PUBLIC
+    // Anyone can view all movies
     // -------------------------------------------------------
     @GetMapping
     public List<MovieResponseDTO> getAllMovies() 
@@ -84,16 +140,19 @@ public class MovieController
     }
 
     // -------------------------------------------------------
-    // GET /movies/{id} → PUBLIC (No authentication required)
+    // GET /movies/{id} → PUBLIC
+    // Anyone can view one movie
     // -------------------------------------------------------
     @GetMapping("/{id}")
-    public MovieResponseDTO getMovieById(@PathVariable Long id) {
+    public MovieResponseDTO getMovieById(@PathVariable Long id) 
+    {
         return movieService.getMovieById(id);
     }
 
     // -------------------------------------------------------
-    // POST /movies → ADMIN ONLY
-    // Token must be valid + user must be ADMIN
+    // POST /movies → USER & ADMIN
+    // USER: creates own movie
+    // ADMIN: creates any movie
     // -------------------------------------------------------
     @PostMapping
     public ResponseEntity<?> createMovie(
@@ -101,18 +160,9 @@ public class MovieController
             @AuthenticationPrincipal User user
     ) 
     {
-        // 1. Check token
-        if (user == null) 
-        {
+        if (user == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body("Missing or invalid token");
-        }
-
-        // 2. Check admin role
-        if (user.getRole() != Role.ADMIN) 
-        {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body("Only ADMIN users can create movies");
         }
 
         MovieResponseDTO created = movieService.createMovie(dto, user);
@@ -120,8 +170,9 @@ public class MovieController
     }
 
     // -------------------------------------------------------
-    // PUT /movies/{id} → ADMIN ONLY
-    // Token + ADMIN check
+    // PUT /movies/{id} → USER & ADMIN
+    // USER: update only own movie
+    // ADMIN: update any movie
     // -------------------------------------------------------
     @PutMapping("/{id}")
     public ResponseEntity<?> updateMovie(
@@ -130,25 +181,19 @@ public class MovieController
             @AuthenticationPrincipal User user
     ) 
     {
-        if (user == null) 
-        {
+        if (user == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body("Missing or invalid token");
         }
 
-        if (user.getRole() != Role.ADMIN)
-        {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body("Only ADMIN users can update movies");
-        }
-
-        MovieResponseDTO updated = movieService.updateMovie(id, dto);
+        MovieResponseDTO updated = movieService.updateMovie(id, dto, user);
         return ResponseEntity.ok(updated);
     }
 
     // -------------------------------------------------------
-    // DELETE /movies/{id} → ADMIN ONLY
-    // Token + ADMIN check
+    // DELETE /movies/{id} → USER & ADMIN
+    // USER: delete only own movie
+    // ADMIN: delete any movie
     // -------------------------------------------------------
     @DeleteMapping("/{id}")
     public ResponseEntity<?> deleteMovie(
@@ -156,19 +201,12 @@ public class MovieController
             @AuthenticationPrincipal User user
     ) 
     {
-
         if (user == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body("Missing or invalid token");
         }
 
-        if (user.getRole() != Role.ADMIN) 
-        {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body("Only ADMIN users can delete movies");
-        }
-
-        movieService.deleteMovie(id);
+        movieService.deleteMovie(id, user);
         return ResponseEntity.ok("Movie deleted successfully");
     }
 }
@@ -176,28 +214,37 @@ public class MovieController
 
 ---
 
-# ✅ **WHAT THIS CONTROLLER DOES**
+# 🧠 **How Ownership Works**
 
-### ✔ If token is NOT provided → `401 Unauthorized`
-
-```
-Missing or invalid token
-```
-
-### ✔ If user is NOT admin → `403 Forbidden`
-
-```
-Only ADMIN users can create/update/delete movies
-```
-
-### ✔ If token is correct AND user is admin → CRUD works
-
-### ✔ Logged-in user is automatically injected via:
+Inside **MovieService**, we enforce:
 
 ```java
-@AuthenticationPrincipal User user;
+if (user.getRole() == Role.USER && !movie.getOwner().getId().equals(user.getId())) {
+    throw new ForbiddenActionException("You do not own this movie");
+}
 ```
+
+### 👍 Why this is better:
+
+* Controller stays clean
+* All permission logic stays in service
+* Easy to unit test
+* Flexible for future roles
 
 ---
 
+# 🏁 Summary
+
+### Controller layer responsibilities:
+
+| Responsibility        | Where it happens                          |
+|-----------------------|-------------------------------------------|
+| Validate @RequestBody | Controller                                |
+| Extract current user  | Controller via `@AuthenticationPrincipal` |
+| Check token exists    | Controller                                |
+| Ownership checks      | **Service Layer**                         |
+| Admin override        | **Service Layer**                         |
+| Send ResponseEntity   | Controller                                |
+
+---
 

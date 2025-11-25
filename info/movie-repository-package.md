@@ -76,35 +76,4 @@ public interface UserRepository extends JpaRepository<User, Long>
 
 ---
 
-# 🧠 How Spring Data JPA Helps
 
-By extending `JpaRepository`, both repositories automatically gain:
-
-✔ Full CRUD operations
-✔ Pagination & sorting support
-✔ Ready-to-use transaction handling
-✔ Auto-generated custom queries based on method names
-
-No SQL required.
-
----
-
-# 🎯 Why This Layer Matters
-
-The repository layer keeps your project:
-
-* **Clean** → No SQL in controllers or services
-* **Maintainable** → Logic stays separated
-* **Scalable** → Easy to add more queries later
-* **Secure** → UserRepository integrates with JWT authentication
-
----
-
-If you'd like, I can also prepare:
-
-✔ README for the **Service layer**
-✔ README for the **Controller layer**
-✔ README for the **Model (entity) layer**
-✔ Full architecture diagram
-
-Just say: **"Write the service layer readme"** or whichever you want.

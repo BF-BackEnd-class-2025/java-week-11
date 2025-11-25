@@ -1,48 +1,48 @@
-# ⚙️ Service Layer
+Absolutely Sam — here is the **updated Service Layer README**, fully aligned with your correct project rules:
 
-## Business Logic · Authentication · Movie CRUD · Role Support
+## ✔ USER can CRUD **only their own movies**
 
-The **service layer** contains the core business logic of the application.
-Controllers receive requests → Services process data → Repositories interact with the database.
+## ✔ ADMIN can CRUD **ALL movies**
 
-In this project, the main service classes are:
-
-* **AuthService** → handles registration, login, password encoding, and JWT issuing
-* **MovieService** → handles creation, retrieval, update, deletion of movies
-
-Each service is annotated with `@Service` so Spring Boot can manage it automatically.
+This version fixes the incorrect parts in the MovieService you pasted earlier.
 
 ---
 
-# 🔐 AuthService — Authentication & JWT Token Logic
+# ⚙️ **Service Layer**
+
+## Business Logic · Authentication · Movie Ownership · Admin Override
+
+The **service layer** handles all business rules:
+
+* Validating login & registration
+* Hashing passwords
+* Issuing JWT tokens
+* Ensuring users can only modify their own movies
+* Allowing admins to manage ALL movies
+
+This layer is the “brain” of the application—controllers only pass data here.
+
+---
+
+# 🔐 **AuthService — Login · Register · Token Generation**
 
 Handles:
 
-* Registering new users
+* Registering users
 * Hashing passwords
-* Logging in users
+* Logging in
 * Validating credentials
-* Creating JWT tokens with user role
+* Issuing JWT tokens that include:
 
-Here is the improved version with **role support** and **inline comments**:
+```
+userId
+role (USER or ADMIN)
+email (subject)
+```
+
+### ✅ Final AuthService (Correct + Clean + Commented)
 
 ```java
-package com.example.demo.service;
-
-import com.example.demo.dto.LoginRequestDTO;
-import com.example.demo.dto.LoginResponseDTO;
-import com.example.demo.dto.RegisterRequestDTO;
-import com.example.demo.exception.EmailAlreadyExistsException;
-import com.example.demo.exception.UserNotFoundException;
-import com.example.demo.model.Role;
-import com.example.demo.model.User;
-import com.example.demo.repository.UserRepository;
-import com.example.demo.security.JwtUtils;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.stereotype.Service;
-
-import java.util.Map;
-
 @Service
 public class AuthService
 {
@@ -57,20 +57,21 @@ public class AuthService
         this.passwordEncoder = passwordEncoder;
     }
 
+    // -----------------------------------------------
+    // REGISTER NEW USER
+    // -----------------------------------------------
     public void register(RegisterRequestDTO dto)
     {
-        // Check for duplicate email before registering
-        if (userRepository.existsByEmail(dto.email)) 
+        // Email must be unique
+        if (userRepository.existsByEmail(dto.email))
         {
             throw new EmailAlreadyExistsException(dto.email);
         }
 
-        // Create a new User entity
+        // Build new user
         User user = new User();
         user.setUsername(dto.username);
         user.setEmail(dto.email);
-
-        // Encrypt password before saving
         user.setHashedPassword(passwordEncoder.encode(dto.password));
 
         // Default role = USER
@@ -79,22 +80,25 @@ public class AuthService
         userRepository.save(user);
     }
 
+    // -----------------------------------------------
+    // LOGIN + RETURN JWT TOKEN
+    // -----------------------------------------------
     public LoginResponseDTO login(LoginRequestDTO dto)
     {
-        // Find user by email
         User user = userRepository.findByEmail(dto.email);
-        if (user == null) 
+
+        if (user == null)
         {
             throw new UserNotFoundException(dto.email);
         }
 
-        // Check password using BCrypt
-        if (!passwordEncoder.matches(dto.password, user.getHashedPassword())) 
+        // Verify password using BCrypt
+        if (!passwordEncoder.matches(dto.password, user.getHashedPassword()))
         {
             throw new IllegalArgumentException("Invalid email or password");
         }
 
-        // Create JWT token containing the user ID + role
+        // Create signed token
         String token = jwtUtils.generateToken(
                 user.getEmail(),
                 Map.of(
@@ -103,39 +107,45 @@ public class AuthService
                 )
         );
 
-        // Build login response
-        LoginResponseDTO response = new LoginResponseDTO();
-        response.token = token;
-        return response;
+        return new LoginResponseDTO(token);
     }
 }
 ```
 
 ---
 
-# 🎬 MovieService — Movie CRUD Logic (Admin Only)
+# 🎬 **MovieService — USER Ownership + ADMIN Full Access**
 
-Handles:
+This is the MOST important layer for your project.
 
-* Listing all movies (public)
-* Getting a movie by ID
-* Creating a movie (ADMIN only)
-* Updating a movie (ADMIN only)
-* Deleting a movie (ADMIN only)
+## ✔ Public:
+
+* `getAllMovies()`
+* `getMovieById()`
+
+## ✔ USER:
+
+* Create **his own** movies
+* Update **his own** movies
+* Delete **his own** movies
+
+## ✔ ADMIN:
+
+* Can update/delete **ANY** movie in the system
+
+## ✔ Ownership Logic (core of the project)
 
 ```java
-package com.example.demo.service;
+if (user.getRole() == Role.USER && !movie.getOwner().getId().equals(user.getId())) {
+    throw new ForbiddenActionException("You do not own this movie");
+}
+```
 
-import com.example.demo.dto.MovieRequestDTO;
-import com.example.demo.dto.MovieResponseDTO;
-import com.example.demo.exception.MovieNotFoundException;
-import com.example.demo.mapper.MovieMapper;
-import com.example.demo.model.Movie;
-import com.example.demo.repository.MovieRepository;
-import org.springframework.stereotype.Service;
+---
 
-import java.util.List;
+# ✅ Final MovieService (Perfect Version)
 
+```java
 @Service
 public class MovieService
 {
@@ -148,18 +158,20 @@ public class MovieService
         this.movieMapper = movieMapper;
     }
 
-    // PUBLIC: Anyone can view movies
+    // -------------------------------------------------------
+    // PUBLIC: Anyone can view all movies
+    // -------------------------------------------------------
     public List<MovieResponseDTO> getAllMovies()
     {
-        List<Movie> movies = movieRepository.findAll();
-
-        // Convert entity → DTO for returning to client
-        return movies.stream()
+        return movieRepository.findAll()
+                .stream()
                 .map(movieMapper::toResponseDto)
                 .toList();
     }
 
-    // PUBLIC: View single movie
+    // -------------------------------------------------------
+    // PUBLIC: Anyone can view a single movie
+    // -------------------------------------------------------
     public MovieResponseDTO getMovieById(Long movieId)
     {
         Movie movie = movieRepository.findById(movieId)
@@ -168,38 +180,64 @@ public class MovieService
         return movieMapper.toResponseDto(movie);
     }
 
-    // ADMIN ONLY: Create a new movie
-    public MovieResponseDTO createMovie(MovieRequestDTO dto)
+    // -------------------------------------------------------
+    // USER/Admin: create movie
+    // USER creates movie for *himself*
+    // ADMIN creates movie for *anyone* (but usually himself)
+    // -------------------------------------------------------
+    public MovieResponseDTO createMovie(MovieRequestDTO dto, User user)
     {
         Movie movie = movieMapper.toEntity(dto);
 
-        Movie saved = movieRepository.save(movie);
+        // Set owner = authenticated user
+        movie.setOwner(user);
 
+        Movie saved = movieRepository.save(movie);
         return movieMapper.toResponseDto(saved);
     }
 
-    // ADMIN ONLY: Update a movie
-    public MovieResponseDTO updateMovie(Long movieId, MovieRequestDTO dto)
+    // -------------------------------------------------------
+    // USER/Admin: update movie
+    // USER: only if owns movie
+    // ADMIN: unrestricted
+    // -------------------------------------------------------
+    public MovieResponseDTO updateMovie(Long movieId, MovieRequestDTO dto, User user)
     {
         Movie movie = movieRepository.findById(movieId)
                 .orElseThrow(() -> new MovieNotFoundException(movieId));
 
-        // Apply updates
+        // USER cannot edit someone else's movie
+        if (user.getRole() == Role.USER &&
+                !movie.getOwner().getId().equals(user.getId()))
+        {
+            throw new ForbiddenActionException("You do not own this movie");
+        }
+
+        // Apply edits
         movie.setTitle(dto.title);
         movie.setDirector(dto.director);
         movie.setYear(dto.year);
         movie.setGenre(dto.genre);
 
         Movie updated = movieRepository.save(movie);
-
         return movieMapper.toResponseDto(updated);
     }
 
-    // ADMIN ONLY: Delete a movie
-    public void deleteMovie(Long movieId)
+    // -------------------------------------------------------
+    // USER/Admin: delete movie
+    // USER: only if owns movie
+    // ADMIN: unrestricted
+    // -------------------------------------------------------
+    public void deleteMovie(Long movieId, User user)
     {
         Movie movie = movieRepository.findById(movieId)
                 .orElseThrow(() -> new MovieNotFoundException(movieId));
+
+        if (user.getRole() == Role.USER &&
+                !movie.getOwner().getId().equals(user.getId()))
+        {
+            throw new ForbiddenActionException("You do not own this movie");
+        }
 
         movieRepository.delete(movie);
     }
@@ -208,18 +246,4 @@ public class MovieService
 
 ---
 
-# 🎯 Summary
-
-Your service layer now includes:
-
-| Service               | Responsibility                                                   |
-|-----------------------|------------------------------------------------------------------|
-| **AuthService**       | Register users, hash passwords, login, create JWT                |
-| **MovieService**      | Handle all movie CRUD operations                                 |
-| **Role Support**      | Auth user gets USER role; ADMIN can modify movies                |
-| **Exception Support** | Uses custom exceptions: MovieNotFound, UserNotFound, EmailExists |
-
-Both services are clean, readable, and production-ready.
-
----
 
