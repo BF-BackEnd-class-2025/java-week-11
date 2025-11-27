@@ -200,10 +200,6 @@ Product (id, userId, name, price, quantity)
     * content
     * createdAt
 
-### **Security Bonus**
-
-* Add server-side encryption using AES (optional)
-
 ---
 
 # 🧩 **PROJECT 6 — Online Courses API (Teacher + Student Roles)**
