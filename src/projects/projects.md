@@ -186,7 +186,7 @@ Product (id, userId, name, price, quantity)
 
 ---
 
-# 🧩 **PROJECT 5 — Secure Notes App (Encrypted Notes Optional)**
+# 🧩 **PROJECT 5 — Secure Notes App**
 
 ### **Features**
 
